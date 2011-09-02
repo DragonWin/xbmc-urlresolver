@@ -465,7 +465,8 @@ class Addon:
 
 
     def add_item(self, play, infolabels, img='', fanart='', resolved=False, 
-                 total_items=0, playlist=False, item_type='video'):
+                 total_items=0, playlist=False, item_type='video', 
+                 contextmenuobj=''):
         '''
         Adds an item to the list of entries to be displayed in XBMC or to a 
         playlist.
@@ -511,6 +512,12 @@ class Addon:
     
             item_type (str): The type of item to add (eg. 'music', 'video' or
             'pictures')
+            
+            contextmenuobj (obj): Created by using create_contextmenu()
+            It will add a menu item or items to your directories or movies.
+            
+            See :meth: 'create_contextmenu' for more information.
+            
         '''
         infolabels = self.unescape_dict(infolabels)
         if not resolved:
@@ -520,6 +527,8 @@ class Addon:
         listitem.setInfo(item_type, infolabels)
         listitem.setProperty('IsPlayable', 'true')
         listitem.setProperty('fanart_image', fanart)
+        if contextmenuobj:
+            listitem.addContextMenuItems(contextmenuobj)
         if playlist is not False:
             self.log_debug('adding item: %s - %s to playlist' % \
                                                     (infolabels['title'], play))
@@ -531,7 +540,7 @@ class Addon:
 
 
     def add_video_item(self, play, infolabels, img='', fanart='', 
-                       resolved=False, total_items=0, playlist=False):
+                       resolved=False, total_items=0, playlist=False, contextmenuobj=''):
         '''
         Convenience method to add a video item to the directory list or a 
         playlist.
@@ -539,11 +548,11 @@ class Addon:
         See :meth:`add_item` for full infomation
         '''
         self.add_item(play, infolabels, img, fanart, resolved, total_items, 
-                      playlist, item_type='video')
+                      playlist, item_type='video', contextmenuobj=contextmenuobj)
 
 
     def add_music_item(self, play, infolabels, img='', fanart='', 
-                       resolved=False, total_items=0, playlist=False):
+                       resolved=False, total_items=0, playlist=False, contextmenuobj=''):
         '''
         Convenience method to add a music item to the directory list or a 
         playlist.
@@ -551,11 +560,11 @@ class Addon:
         See :meth:`add_item` for full infomation
         '''
         self.add_item(play, infolabels, img, fanart, resolved, total_items, 
-                      playlist, item_type='music')
+                      playlist, item_type='music', contextmenuobj=contextmenuobj)
 
 
     def add_directory(self, queries, title, img='', fanart='', 
-                      total_items=0, is_folder=True):
+                      total_items=0, is_folder=True, contextmenuobj=''):
         '''
         Add a directory to the list of items to be displayed by XBMC.
         
@@ -583,6 +592,11 @@ class Addon:
             display. If ``False``, the 'Loading Directory' message will not be
             displayed by XBMC (useful if you want a directory item to do 
             something like pop up a dialog).
+            
+            contextmenuobj (obj): Created by using create_contextmenu()
+            It will add a menu item or items to your directories or movies.
+            
+            See :meth: 'create_contextmenu' for more information.
         
         '''
         title = self.unescape(title)
@@ -590,6 +604,8 @@ class Addon:
         self.log_debug(u'adding dir: %s - %s' % (title, url))
         listitem = xbmcgui.ListItem(title, iconImage=img, 
                                     thumbnailImage=img)
+        if contextmenuobj:
+            listitem.addContextMenuItems(contextmenuobj)
         if not fanart:
             fanart = self.get_fanart()
         listitem.setProperty('fanart_image', fanart)
@@ -610,6 +626,43 @@ class Addon:
         except:
             return id
 
+
+    def create_contextmenu(self, menuname, scriptargs,
+                            newlist=False, contextmenuobj=''):
+        '''
+        lets you create a context menu by creating an object that you can
+        use with add_video_item, add_item, add_music_item, to have extra
+        menu's show when a user right clicks on a directory or a movie / song.
+        
+        args:
+            menuname (str): The name that will be shown in your menu
+            
+            scriptargs (str): a list of arguments will be passed back to the 
+            addon in sys.argv[2] the form of:
+            mode=mymode&type=53&displaylist=1
+                
+        kwargs:
+            newlist (Bol): Default False, If you want to replace the current 
+            movie / dir list shown on the screen set this to True.
+            If you only want the user to stay on the same screen, set this
+            to False or omit.
+            
+            contextmenuobj (tuple): is an existing object that has already been
+            returned by this function. Passing the existing tuple, will stack
+            the menu's you create, allowing you to create multiple menu items.
+            
+        Returns: a tuple conforming to the listitem.addContextMenuItems()
+        '''
+        if not contextmenuobj:
+            contextmenuobj = []
+        if newlist:
+            contextmenuobj.append((menuname, u'XBMC.Container.Update(%s?%s)' % 
+                               (self.url, scriptargs)))
+        else:
+            contextmenuobj.append((menuname, u'XBMC.RunPlugin(%s?%s)' % 
+                               (self.url, scriptargs)))
+        return contextmenuobj
+            
 
     def decode(self, data):
         '''

@@ -74,6 +74,8 @@ elif mode == 'test':
                          {'title': 'vidxden flv'})
     addon.add_video_item('http://www.youtube.com/watch?v=Q3VJOl_XeGs', 
                          {'title': 'youtube'})
+    addon.add_video_item('http://embed.novamov.com/embed.php?width=600&height=480&v=eczrahg83yvi5&px=1', 
+                         {'title': 'novamov embed link'})
 
 elif mode == 'tv':
     browse = addon.queries.get('browse', False)
