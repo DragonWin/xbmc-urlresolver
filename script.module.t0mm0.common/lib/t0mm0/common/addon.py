@@ -20,9 +20,10 @@ import cgi
 import re
 import os
 try:
-   import cPickle as pickle
+    import cPickle as pickle
 except:
-   import pickle
+    import pickle
+import base64
 import unicodedata
 import urllib
 import xbmc
@@ -465,8 +466,7 @@ class Addon:
 
 
     def add_item(self, play, infolabels, img='', fanart='', resolved=False, 
-                 total_items=0, playlist=False, item_type='video', 
-                 contextmenuobj=''):
+                 total_items=0, playlist=False, item_type='video', cm=None):
         '''
         Adds an item to the list of entries to be displayed in XBMC or to a 
         playlist.
@@ -481,6 +481,7 @@ class Addon:
         
             :meth:`add_music_item`, :meth:`add_video_item`, 
             :meth:`add_directory`
+            :meth:`ContextMenu`
             
         Args:
             play (str): The string to be sent to the plugin when the user 
@@ -513,12 +514,22 @@ class Addon:
             item_type (str): The type of item to add (eg. 'music', 'video' or
             'pictures')
             
-            contextmenuobj (obj): Created by using create_contextmenu()
-            It will add a menu item or items to your directories or movies.
-            
-            See :meth: 'create_contextmenu' for more information.
-            
+            cm (obj): The ContextMenu object where you have set either favorite
+            or context or both. 
+
+            See :meth: 'ContextMenu' for more information.
         '''
+        menuobj = None
+        if cm is not None:
+            scriptargs = {'mode' : cm.favorite['action'], 
+                          'title' : infolabels['title'], 
+                          'callback' : cm.favorite['callback'], 'url' : play,
+                          'item_type' : item_type, 'img' : img, 
+                          'fanart' : fanart, 'favtype' : cm.favorite['favtype']}
+
+            cm.add_context(cm.favorite['menuname'], scriptargs, False)
+            menuobj = cm._generate_menu()
+
         infolabels = self.unescape_dict(infolabels)
         if not resolved:
             play = self.build_plugin_url({'play': play})
@@ -527,8 +538,8 @@ class Addon:
         listitem.setInfo(item_type, infolabels)
         listitem.setProperty('IsPlayable', 'true')
         listitem.setProperty('fanart_image', fanart)
-        if contextmenuobj:
-            listitem.addContextMenuItems(contextmenuobj)
+        if menuobj is not None:
+            listitem.addContextMenuItems(menuobj)
         if playlist is not False:
             self.log_debug('adding item: %s - %s to playlist' % \
                                                     (infolabels['title'], play))
@@ -540,7 +551,7 @@ class Addon:
 
 
     def add_video_item(self, play, infolabels, img='', fanart='', 
-                       resolved=False, total_items=0, playlist=False, contextmenuobj=''):
+                       resolved=False, total_items=0, playlist=False, cm=None):
         '''
         Convenience method to add a video item to the directory list or a 
         playlist.
@@ -548,11 +559,11 @@ class Addon:
         See :meth:`add_item` for full infomation
         '''
         self.add_item(play, infolabels, img, fanart, resolved, total_items, 
-                      playlist, item_type='video', contextmenuobj=contextmenuobj)
+                      playlist, item_type='video', cm=cm)
 
 
     def add_music_item(self, play, infolabels, img='', fanart='', 
-                       resolved=False, total_items=0, playlist=False, contextmenuobj=''):
+                       resolved=False, total_items=0, playlist=False, cm=None):
         '''
         Convenience method to add a music item to the directory list or a 
         playlist.
@@ -560,11 +571,11 @@ class Addon:
         See :meth:`add_item` for full infomation
         '''
         self.add_item(play, infolabels, img, fanart, resolved, total_items, 
-                      playlist, item_type='music', contextmenuobj=contextmenuobj)
+                      playlist, item_type='music', cm=cm)
 
 
     def add_directory(self, queries, title, img='', fanart='', 
-                      total_items=0, is_folder=True, contextmenuobj=''):
+                      total_items=0, is_folder=True, cm=None):
         '''
         Add a directory to the list of items to be displayed by XBMC.
         
@@ -593,19 +604,34 @@ class Addon:
             displayed by XBMC (useful if you want a directory item to do 
             something like pop up a dialog).
             
-            contextmenuobj (obj): Created by using create_contextmenu()
-            It will add a menu item or items to your directories or movies.
+            cm (obj): The ContextMenu object where you have set either favorite
+            or context or both. e.g ContextMenu.add_context()
             
-            See :meth: 'create_contextmenu' for more information.
-        
+            See :meth: 'ContextMenu' for more information.
         '''
-        title = self.unescape(title)
+        menuobj = None
+        if cm is not None:
+            # TODO: work around dict_to_string
+            if cm.favorite is not None:
+                querystring = self.dict_to_string(queries)
+                #querystring = self.parse_query(queries, defaults={})
+                scriptargs = {'mode' : cm.favorite['action'], 'title' : title,
+                              'callback' : cm.favorite['callback'], 
+                              'img' : img, 'fanart' : fanart, 
+                              'queries' : base64.urlsafe_b64encode(querystring),
+                              'favtype' : cm.favorite['favtype'] }
+                           
+                cm.add_context(cm.favorite['menuname'], scriptargs, False)
+            menuobj = cm._generate_menu()
+
+            
         url = self.build_plugin_url(queries)
+        title = self.unescape(title)
         self.log_debug(u'adding dir: %s - %s' % (title, url))
         listitem = xbmcgui.ListItem(title, iconImage=img, 
                                     thumbnailImage=img)
-        if contextmenuobj:
-            listitem.addContextMenuItems(contextmenuobj)
+        if menuobj is not None:
+            listitem.addContextMenuItems(menuobj)
         if not fanart:
             fanart = self.get_fanart()
         listitem.setProperty('fanart_image', fanart)
@@ -625,43 +651,6 @@ class Addon:
             return unichr(int(id))
         except:
             return id
-
-
-    def create_contextmenu(self, menuname, scriptargs,
-                            newlist=False, contextmenuobj=''):
-        '''
-        lets you create a context menu by creating an object that you can
-        use with add_video_item, add_item, add_music_item, to have extra
-        menu's show when a user right clicks on a directory or a movie / song.
-        
-        args:
-            menuname (str): The name that will be shown in your menu
-            
-            scriptargs (str): a list of arguments will be passed back to the 
-            addon in sys.argv[2] the form of:
-            mode=mymode&type=53&displaylist=1
-                
-        kwargs:
-            newlist (Bol): Default False, If you want to replace the current 
-            movie / dir list shown on the screen set this to True.
-            If you only want the user to stay on the same screen, set this
-            to False or omit.
-            
-            contextmenuobj (tuple): is an existing object that has already been
-            returned by this function. Passing the existing tuple, will stack
-            the menu's you create, allowing you to create multiple menu items.
-            
-        Returns: a tuple conforming to the listitem.addContextMenuItems()
-        '''
-        if not contextmenuobj:
-            contextmenuobj = []
-        if newlist:
-            contextmenuobj.append((menuname, u'XBMC.Container.Update(%s?%s)' % 
-                               (self.url, scriptargs)))
-        else:
-            contextmenuobj.append((menuname, u'XBMC.RunPlugin(%s?%s)' % 
-                               (self.url, scriptargs)))
-        return contextmenuobj
             
 
     def decode(self, data):
@@ -749,6 +738,7 @@ class Addon:
             return True
         except pickle.PickleError:
             return False
+        return True
         
     def load_data(self,filename):
         '''
@@ -774,6 +764,343 @@ class Addon:
         except:
             return False
         return data
-            
-        
 
+            
+    def save_favorite(self):
+        '''
+        This function should ONLY be called from mode == 'savefavorite', as
+        it expects the particular data structure from the "save menu". If
+        you need to save your own data in a fast way use save_data()
+        
+        See :meth:`load_data` for infomation.
+        
+            
+        '''
+        savedata={}
+        for key in self.queries:
+            match = re.match(r'([\d|\w|\s]+)', key)
+            if match:
+                savedata[key] = self.queries[key]
+        filename = base64.urlsafe_b64encode(savedata['title'])
+        profile_path = self.get_profile()
+        try:
+            os.makedirs(profile_path)
+        except:
+            pass
+        favorite_path = os.path.join(profile_path, 'Favorites')
+        try:
+            os.makedirs(favorite_path)
+        except:
+            pass
+        filepath = os.path.join('Favorites', filename + '.txt')
+        return self.save_data(filepath, savedata)
+        
+        
+    def del_favorite(self):
+        '''
+        Takes no arguments, but expects to be called by the contextmenu
+        'Delete favorite as that generates particular data required
+        to delete the saved favorite.
+        
+        Do not call this directly, except from "mode = 'deletefavorite'"
+         
+        '''
+        profile_path = self.get_profile()
+        favorite_path = os.path.join(profile_path, 'Favorites')
+        filename = base64.urlsafe_b64encode(self.queries['title'])
+        filepath = os.path.join(favorite_path, filename + '.txt')
+        try:
+            os.remove(filepath)
+        except:
+            self.show_small_popup(msg='Unable to delete favorite')
+            return False
+        xbmc.executebuiltin("container.Refresh")
+    
+    
+    def show_favorites(self, cm, catagories=''):
+        '''
+        This called when the user clicks on the favorite menu, and will present
+        the user with a directory of catagories.
+
+        Kwargs:
+            catagories (dict): 
+            (Default: {'movies' : 'Movies', 'tv' : 'TV Shows'} The key is the 
+            favtype (or you can call it filter), and the value is what is shown
+            to the user on the screen.
+            
+            You can overwrite the defaults to suit your addon's catagories, just
+            remember that they must match your favtype that you used in
+            create_favorite
+            
+            See :meth:`create_favorite` more infomation.
+        
+        '''
+        if not catagories:
+            catagories = { 'movies' : 'Movies', 'tv' : 'Tv shows'}
+        if not 'favtype' in self.queries:
+            for key in catagories:
+                self.add_directory({ 'mode' : 'showfavorites',
+                                     'favtype' : key }, catagories[key])
+            return
+        profile_path = self.get_profile()
+        favoritefolder = os.path.join(profile_path,'Favorites')
+        try:
+            allfiles=os.listdir(favoritefolder)
+        except:
+            self.show_small_popup(msg='No favorites saved')
+            return False
+        for filename in allfiles:
+            print filename
+            filepath = os.path.join('Favorites', filename)
+            data = self.load_data(filepath)
+            if data:
+                if re.match(data['favtype'], self.queries['favtype'], re.I):
+                    cm.add_favorite('Delete favorite',
+                                { 'mode' : 'deletefavorite'}, 'deletefavorite', 
+                                self.queries['favtype'] )
+                    if data['callback'] == 'play':
+                        self.add_item(data['url'], { 'title' : data['title']}, 
+                                      item_type=data['item_type'], cm=cm)
+                    else:
+                        unencoded = base64.urlsafe_b64decode(data['queries'])
+                        # TODO: Work around string_to_dict
+                        queries = self.string_to_dict(unencoded)
+                        #queries = urllib.urlencode(unencoded)
+                        self.add_directory(queries, data['title'], cm=cm)
+            else:
+                return False
+        
+            
+    def dict_to_string(self, dictionary):
+        ''' 
+        This is a convinient way to convert a dictionary to a string. It can 
+        only be 2 layers deep e.g. 
+        
+        { 'mylist' : ('foo', 'bar', 'chimera'), 'mydict' : { 'key1' : 'key1value',
+         'key2' : 'key2value' }, 'myurl' : 'http://xmbx.org' }
+
+        Args:
+            dictionary (dict): Each value in the dict can contain one of the 
+            following: bol, Nontype, str, dict, list, tuple, int. Note that the 
+            dict in dict, list in dict, tuple in dict's contents must be
+            one of the above types, also any int values will have become
+            str values, and you need to set it again after using string_to_dict.
+            
+            See :meth:`string_to_dict` for infomation.
+            
+        Returns:
+            A string in the format &key=value, how ever it's not url safe.
+        
+        '''
+        dictstring = ''
+        for key in dictionary:
+            string = key
+            m = re.match(r'([\d|\w|\s]+)', string)
+            if m:
+                if type(dictionary[key]) == tuple:
+                    tuplestring = '&%s=%s' % (key,'__tuple__/')
+                    for value in dictionary[key]:
+                        tuplestring = tuplestring + '__%s' % (value)
+                    dictstring = dictstring + tuplestring
+                elif type(dictionary[key]) == list:
+                    liststring = '&%s=%s' % (key,'__list__/')
+                    for value in dictionary[key]:
+                        liststring = liststring + '__%s' % (value)
+                    dictstring = dictstring + liststring
+                elif type(dictionary[key]) == dict:
+                    dictstring = '&%s=%s' % (key, '__dict__/')
+                    for middlekey in dictionary[key]:
+                        dictstring = dictstring + '___%s__%s' % \
+                        (middlekey, dictionary[key][middlekey])
+                    dictstring = dictstring + dictstring
+                else:
+                    dictstring = dictstring + '&%s=__str__/%s' % \
+                    (key, dictionary[key])
+        return dictstring
+    
+    
+
+        
+        
+    def string_to_dict(self, dictstring):
+        '''
+        This function rebuilts a dict that was previously turned into a string
+        using dict_to_string. Remember as it was turned into a string the 
+        values and keys are all str now.
+        
+        Args:
+            dictstring (str): A string priveously generated by dict_to_string.
+            
+            See :meth:`dict_to_string` for further infomation.
+        
+        Returns:
+            A rebuilt dictionary
+        '''
+        restoreddict = {}
+        splitter=re.split('&', dictstring)
+        for string in splitter:
+            if re.match('.+?__str__/', string):
+                key, value = re.split('=__str__/', string)
+                restoreddict[key] = value
+            elif re.match('.+?__tuple__/', string):
+                key, values = re.split('=__tuple__/', string)
+                splits = re.split('__', values)
+                splits.pop(0)
+                tmptuple = tuple(splits)
+                restoreddict[key] = tmptuple
+            elif re.match('.+?__list__/', string):
+                key, values = re.split('=__list__/', string)
+                splits = re.split('__', values)
+                splits.pop(0)
+                restoreddict[key] = splits
+            elif re.match('.+?__dict__/', string):
+                tmpdict = {}
+                key, values = re.split('=__dict__/', string)
+                entrypairs = re.split('___', values)
+                for pair in entrypairs:
+                    if pair:
+                        pairkey, pairvalue = re.split('__', pair)
+                        tmpdict[pairkey] = pairvalue
+                restoreddict[key] = tmpdict
+        return restoreddict
+
+class ContextMenu:
+    
+    def __init__(self, addon_url):
+        '''
+        This class allows you to add menu's that will be displayed when the 
+        user right clicks on the movie or directory. It handles all the
+        background for you, and allows you to consentrate on coding your addon.
+        
+        Usage:
+        In order to use the built-in favorite setup there is a few lines
+        that must be added to your addon.
+        
+        First: Import and initiate the Addon and ContextMenu classes.
+        from t0mm0.common.addon import Addon
+        from t0mm0.common.addon import ContextMenu
+        addon = Addon('plugin.video.solarmovie', sys.argv)
+        cm = ContextMenu(addon.url)
+        
+        Second: Add the following lines to your addon, just above 'if not play:'
+        elif mode == 'savefavorite':
+            success = addon.save_favorite()
+            if success is False:
+                addon.show_small_popup(msg='Unable to save favorite')
+            else:
+                addon.show_small_popup(msg='Favorite saved')
+    
+    
+        elif mode == 'deletefavorite':
+            addon.del_favorite()
+            
+            
+        elif mode == 'showfavorites':
+            addon.show_favorites(cm)
+            
+            
+        Third: Where you want to have the Favorites menu display add this line.
+        add_directory({'mode' : 'showfavorites' }, 'Favorites')
+            
+        For information on how to add the favorite context menu to your links
+        or directories, please see the links below
+        
+        See :meth:`add_context` on how to add your own menu's
+        See :meth:`add_favorite` on how to add the favorite menu.
+        See :meth:`add_dir` on how to apply the menu to a directory
+        See :meth:`add_item` on how to apply the menu on an item (movie, song).
+            
+        Args:
+            addon_url (str): from addon.url
+        '''
+        self.contextmenu = {}
+        self.favorite = None
+        self.addonurl = addon_url
+        
+        
+    def add_context(self, menuname, scriptargs, newlist=False):
+        '''
+        Lets you create a context menu, that will be applied when you provide
+        the ContextMenu object to the add_dir, add_item, add_video_item,
+        and add_music_item.
+        
+        args:
+            menuname (str): The name that will be shown in your menu
+            
+            scriptargs (dict): consiting of key / value to be used as arguments
+            for the call when the menu is clicked e.g. { 'mode' : 'main' }.
+                
+        kwargs:
+            newlist (Bol): Default False, If you want to replace the current 
+            movie / dir list shown on the screen set this to True.
+            If you want to do some background tasks, and have the the user stay
+            on the same screen, set this to False or omit.
+        '''
+        encodedscriptargs = urllib.urlencode(scriptargs)
+        self.contextmenu[menuname] = {'menuname' : menuname,
+                                      'encodedscriptargs' : encodedscriptargs,
+                                      'newlist' : newlist}
+
+    
+    
+    def add_favorite(self, menuname, callback, action='savefavorite', 
+                     favtype='movies', ):
+        '''
+        add_favorite is used to apply a favorite menu item to an item or dir.
+        Once that is done, you can pass the ContextMenu object to the add_dir,
+        add_video_item, add_music_item, and add_item, to have that menu context
+        set.
+
+        Args:
+            menuname (string): The name displayed as the menu item, e.g.
+            'Save Myaddon Favorite'
+            
+            callback (dict): This is the mode that will be 
+            called when the user clicks on a shown favorite. It can be a 
+            mode defined in your addon or play.
+            
+            e.g. { 'mode' : 'play' } or { 'mode' : 'findmovielinks' }
+            
+        Kwargs:
+            action (string): (Default: savefavorite) This is the function that
+            will be called when the user clicks on the menu item. It should
+            not be cahnged as the favorite module takes care of this.
+            
+            favtype (string): (Default: movie) This is used as a sort function
+            when the favorite is displayed. It will put the saved favorites
+            into catagories.
+            
+            See :meth:`show_favorites` for infomation on catagories
+            
+
+        '''
+        if not menuname:
+            menuname = 'Add as favorite in this addon'
+        self.favorite = { 'callback' : callback['mode'], 'action' : action, 
+                         'favtype' : favtype, 'menuname' : menuname }
+    
+
+    def _generate_menu(self):
+        '''
+        This will take the stored context menu's added with add_contextmenu
+        and add_favorite, and create the object that xbmc expects to see in 
+        order to apply menu's. This is all handled in the add_dir and add_item
+        functions in Addon.
+        
+        Do not call this directly.
+        
+        
+        '''
+        menulist = []
+        for key in self.contextmenu:
+            if self.contextmenu[key]['newlist']:
+                menulist.append((key, u'XBMC.Container.Update(%s/?%s)' % 
+                                (self.addonurl, 
+                                 self.contextmenu[key]['encodedscriptargs'] )))
+            else:
+                menulist.append((key, u'XBMC.RunPlugin(%s/?%s)' % 
+                                (self.addonurl, 
+                                 self.contextmenu[key]['encodedscriptargs'] )))
+        return menulist
+
+            
