@@ -845,10 +845,9 @@ class Addon:
         try:
             allfiles=os.listdir(favoritefolder)
         except:
-            self.show_small_popup(msg='No favorites saved')
+            self.show_small_popup(msg='No favorites found')
             return False
         for filename in allfiles:
-            print filename
             filepath = os.path.join('Favorites', filename)
             data = self.load_data(filepath)
             if data:
