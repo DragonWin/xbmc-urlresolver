@@ -815,7 +815,7 @@ class Addon:
         xbmc.executebuiltin("container.Refresh")
     
     
-    def show_favorites(self, cm, catagories=''):
+    def show_favorites(self, catagories=''):
         '''
         This called when the user clicks on the favorite menu, and will present
         the user with a directory of catagories.
@@ -828,8 +828,26 @@ class Addon:
             
             You can overwrite the defaults to suit your addon's catagories, just
             remember that they must match your favtype that you used in
-            create_favorite
+            cm.create_favorite()
             
+        Returns:
+            On success: list containing dictionaries
+            On Failure: False
+            
+            Each dict contains:
+            Always returned
+            data['callback']
+            data['title']
+            data['favtype']
+
+            Play items
+            data['url']
+            data['item_type']
+
+            Directory items
+            data['queries']
+            
+        
             See :meth:`create_favorite` more infomation.
         
         '''
@@ -847,23 +865,23 @@ class Addon:
         except:
             self.show_small_popup(msg='No favorites found')
             return False
+        favorites= []
         for filename in allfiles:
             filepath = os.path.join('Favorites', filename)
             data = self.load_data(filepath)
             if data:
                 if re.match(data['favtype'], self.queries['favtype'], re.I):
-                    cm.add_favorite('Delete favorite',
-                                { 'mode' : 'deletefavorite'}, 'deletefavorite', 
-                                self.queries['favtype'] )
                     if data['callback'] == 'play':
-                        self.add_item(data['url'], { 'title' : data['title']}, 
-                                      item_type=data['item_type'], cm=cm)
+                        favorites.append(data)
                     else:
                         unencoded = base64.urlsafe_b64decode(data['queries'])
                         queries = pickle.loads(unencoded)
-                        self.add_directory(queries, data['title'], cm=cm)
+                        data['queries'] = queries
+                        favorites.append(data)
             else:
                 return False
+            
+        return favorites
         
 
 
@@ -899,9 +917,19 @@ class ContextMenu:
             
             
         elif mode == 'showfavorites':
-            addon.show_favorites(cm)
+            favorites = addon.show_favorites()
+            if favorites:
+                cm.add_favorite('Delete favorite',{ 'mode' : 'deletefavorite'}, 
+                                'deletefavorite', addon.queries['favtype'] )
+                for data in favorites:
+                    if data['callback'] == 'play':
+                        addon.add_item(data['url'], { 'title' : data['title']}, 
+                                        item_type=data['item_type'], cm=cm)
+                    else:
+                        addon.add_directory(data['queries'], data['title'],
+                                            cm=cm)
             
-            
+        
         Third: Where you want to have the Favorites menu display add this line.
         add_directory({'mode' : 'showfavorites' }, 'Favorites')
             
