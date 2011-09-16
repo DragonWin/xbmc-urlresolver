@@ -21,10 +21,12 @@ import re
 import string
 import sys
 from t0mm0.common.addon import Addon
+from t0mm0.common.addon import ContextMenu
 from t0mm0.common.net import Net
 import urlresolver
 
 addon = Addon('plugin.video.t0mm0.test', sys.argv)
+cm = ContextMenu(addon)
 net = Net()
 
 logo = os.path.join(addon.get_path(), 'art','logo.jpg')
@@ -42,43 +44,43 @@ elif mode == 'resolver_settings':
     urlresolver.display_settings()
 
 elif mode == 'test':
-    myfavorite = addon.create_favorite('Save t0mm0 test favorite',
-                                       'play', 'savefavorite', 
-                                       'movie', )
+    cm.add_context('Jump to addon favorites', { 'mode' : 'showfavorites' }, True)
+    cm.add_favorite('Save to addon favorite', { 'mode' : 'play' },
+                    'savefavorite', 'movie')
     addon.add_video_item('http://www.2gb-hosting.com/v/e1593e96e19f7ecced3778668e809c77/efc5d03968fbca6.avi.html', 
-                         {'title': '2gb-hosting'}, favorite=myfavorite)
+                         {'title': '2gb-hosting'}, cm=cm)
     addon.add_video_item('http://www.divxstage.eu/video/eb20c352c3ccc', 
-                         {'title': 'divxstage'}, favorite=myfavorite)
+                         {'title': 'divxstage'}, cm=cm)
     addon.add_video_item('http://www.megaupload.com/?d=TQPQJM5H', 
-                         {'title': 'megaupload'}, favorite=myfavorite)
+                         {'title': 'megaupload'}, cm=cm)
     addon.add_video_item('http://www.megavideo.com/?v=LYWNYM1J', 
-                         {'title': 'megavideo'}, favorite=myfavorite)
+                         {'title': 'megavideo'}, cm=cm)
     addon.add_video_item('http://www.movshare.net/video/rnqmuilri1b71', 
                          {'title': 'movshare'})
     addon.add_video_item('http://www.nolimitvideo.com/video/bdb6e2c62fe027a7b20a/friends-with-benefits-ts', 
-                         {'title': 'nolimitvideo'}, favorite=myfavorite)
+                         {'title': 'nolimitvideo'}, cm=cm)
     addon.add_video_item('http://www.novamov.com/video/kdshwq2cj6vxv', 
-                         {'title': 'novamov'}, favorite=myfavorite)
+                         {'title': 'novamov'}, cm=cm)
     addon.add_video_item('http://www.putlocker.com/file/DFE7599AE064911A', 
-                         {'title': 'putlocker'}, favorite=myfavorite)
+                         {'title': 'putlocker'}, cm=cm)
     addon.add_video_item('http://seeon.tv/view/14451', 
                          {'title': 'seeon.tv'})
     addon.add_video_item('http://www.sockshare.com/embed/541433EA7B32FB39', 
-                         {'title': 'sockshare'}, favorite=myfavorite)
+                         {'title': 'sockshare'}, cm=cm)
     addon.add_video_item('http://www.tubeplus.me/player/1962655/Entourage/season_8/episode_2/Out_With_a_Bang_/', 
-                         {'title': 'tubeplus'}, favorite=myfavorite)
+                         {'title': 'tubeplus'}, cm=cm)
     addon.add_video_item('http://videobb.com/video/8FvAG6AQpHi8', 
-                         {'title': 'videobb'}, favorite=myfavorite)
+                         {'title': 'videobb'}, cm=cm)
     addon.add_video_item('http://www.videoweed.es/file/crirmdz3tj116', 
-                         {'title': 'videoweed'}, favorite=myfavorite)
+                         {'title': 'videoweed'}, cm=cm)
     addon.add_video_item('http://www.vidxden.com/0up93nsov4w9/Hells.Kitchen.US.S07E07.WS.PDTV.XviD-LOL.avi.html', 
-                         {'title': 'vidxden avi'}, favorite=myfavorite)
+                         {'title': 'vidxden avi'}, cm=cm)
     addon.add_video_item('http://www.vidxden.com/embed-ce9eahujm85p.html', 
-                         {'title': 'vidxden flv'}, favorite=myfavorite)
+                         {'title': 'vidxden flv'}, cm=cm)
     addon.add_video_item('http://www.youtube.com/watch?v=Q3VJOl_XeGs', 
-                         {'title': 'youtube'}, favorite=myfavorite)
+                         {'title': 'youtube'}, cm=cm)
     addon.add_video_item('http://embed.novamov.com/embed.php?width=600&height=480&v=eczrahg83yvi5&px=1', 
-                         {'title': 'novamov embed link'}, favorite=myfavorite)
+                         {'title': 'novamov embed link'}, cm=cm)
 
 elif mode == 'tv':
     browse = addon.queries.get('browse', False)
@@ -90,22 +92,16 @@ elif mode == 'tv':
             r = '<div class="list_item.+?src="(.+?)".+?<a class="plot".+?' + \
                 'href="(.+?)".+?<b>(.+?)<\/b>.+?<\/b>(.+?)<'
             regex = re.finditer(r, html, re.DOTALL)
-            myfavorite = addon.create_favorite('Save serie to favorite', 
-                                               'series', 'savefavorite', 'tv')
-            menuobj = addon.create_contextmenu('Go to addon main screen', 
-                                                 'mode=main', True)
-            menuobj = addon.create_contextmenu('Jump to favorites', 
-                                                           'mode=showfavorites', 
-                                                           True, 
-                                                           contextmenuobj=menuobj)
+            cm.add_favorite('Save to addon favorite', { 'mode' : 'series' },
+                            'savefavorite', 'tv')
+            cm.add_context('Go to addon main screen', { 'mode' : 'main' }, True)
+            cm.add_context('Jump to favorites', { 'mode' : 'showfavorites' }, 
+                           True)
             for s in regex:
                 thumb, url, title, plot = s.groups()
-                #print 'mode : series'
                 addon.add_directory({'mode': 'series', 
-                                     'url': base_url + url}, 
-                                     title, 
-                                     img=base_url+thumb, favorite=myfavorite,
-                                     contextmenuobj=menuobj)
+                                     'url': base_url + url}, title, 
+                                    img=base_url+thumb, cm=cm)
 
         else:
             addon.add_directory({'mode': 'tv', 
@@ -148,7 +144,7 @@ elif mode == 'main':
 
 
 elif mode == 'savefavorite':
-    test = addon.save_favorite(sys.argv[2])
+    test = addon.save_favorite()
     if test is False:
         addon.show_small_popup(msg='Unable to save favorite')
     else:
@@ -156,11 +152,20 @@ elif mode == 'savefavorite':
 
 
 elif mode == 'deletefavorite':
-    addon.del_favorite(sys.argv[2])
+    addon.del_favorite()
 
 
 elif mode == 'showfavorites':
-    addon.show_favorites(sys.argv[2])
+    favorites = addon.show_favorites( {'movies' : 'Movies', 'tv' : 'TV Shows', 'news' : 'News' } )
+    if favorites:
+        cm.add_favorite('Delete favorite',{ 'mode' : 'deletefavorite'}, 
+                        'deletefavorite', addon.queries['favtype'] )
+        for data in favorites:
+            if data['callback'] == 'play':
+                addon.add_item(data['url'], { 'title' : data['title']}, 
+                              item_type=data['item_type'], cm=cm)
+            else:
+                addon.add_directory(data['queries'], data['title'], cm=cm)
 
 
 if not play:

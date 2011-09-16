@@ -947,6 +947,7 @@ class ContextMenu:
         self.contextmenu = {}
         self.favorite = None
         self.addonurl = addon.url
+        self.addon = addon
         
         
     def add_context(self, menuname, scriptargs, newlist=False):
@@ -967,9 +968,13 @@ class ContextMenu:
             If you want to do some background tasks, and have the the user stay
             on the same screen, set this to False or omit.
         '''
-        encodedscriptargs = urllib.urlencode(scriptargs)
+        print scriptargs
+        try:
+            scriptargs = urllib.urlencode(scriptargs)
+        except:
+            self.addon.log_debug('Unable to urlencode scriptargs in add_context')
         self.contextmenu[menuname] = {'menuname' : menuname,
-                                      'encodedscriptargs' : encodedscriptargs,
+                                      'encodedscriptargs' : scriptargs,
                                       'newlist' : newlist}
 
     
