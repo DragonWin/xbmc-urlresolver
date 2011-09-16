@@ -968,7 +968,6 @@ class ContextMenu:
             If you want to do some background tasks, and have the the user stay
             on the same screen, set this to False or omit.
         '''
-        print scriptargs
         try:
             scriptargs = urllib.urlencode(scriptargs)
         except:
